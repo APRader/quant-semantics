@@ -4,8 +4,11 @@ from flloat.parser.ldlf import LDLfParser
 from reward_monitor import create_monitor
 import random
 import unittest
+import time
+from statistics import mean
 
-random.seed(1)
+
+# random.seed(1)
 
 def generate_random_restricted_formula(layer=1, gurf=True):
     symbols = ("true", "false", "a", "b", "c", "d", "e")
@@ -149,7 +152,8 @@ def generate_random_ldlf_formula(layer=1):
 
 
 def generate_random_trace():
-    trace_length = random.randint(1, 10)
+    # trace_length = random.randint(1, 10)
+    trace_length = random.randint(199, 200)
     symbols = ("a", "b", "c", "d", "e")
     trace = []
 
@@ -160,7 +164,8 @@ def generate_random_trace():
 
 
 def generate_random_boolean_trace():
-    trace_length = random.randint(1, 10)
+    # trace_length = random.randint(1, 10)
+    trace_length = random.randint(100, 200)
     symbols = ("a", "b", "c", "d", "e")
     trace_num = []
     trace_bool = []
@@ -224,4 +229,88 @@ class TestQuant(unittest.TestCase):
 
             assert rm_rewards == actual_rewards
 
+    def test_goalstart(self):
+        actual_times = []
+        simplified_times = []
+        formula = "<b* ; c & b ; b* ; a & b>tt"
+        tg = LDLfParser()(formula)
+        for run in range(100):
+            trace = generate_random_trace()
+            tic = time.perf_counter()
+            actual_value = tg.value(trace)
+            toc = time.perf_counter()
+            simplified_value = max([min(trace[i]['a'],
+                                        min([trace[j]['b'] for j in range(0, i + 1)]),
+                                        max([trace[j]['c'] for j in range(0, i)]))
+                                    for i in range(1, len(trace))], default=0)
+            tuc = time.perf_counter()
+            actual_times.append(toc - tic)
+            simplified_times.append(tuc - toc)
+            if actual_value != simplified_value:
+                print("Values don't match.")
+            assert actual_value == simplified_value
+        print(f"Actual time: {mean(actual_times)}, simplified time: {mean(simplified_times)}")
+        print(f"Hand-written semantics is {sum(actual_times) / sum(simplified_times)} times faster")
 
+    def test_goalstart_bool(self):
+        actual_times = []
+        simplified_times = []
+        formula = "<b* ; c & b ; b* ; a & b>tt"
+        tg = LDLfParser()(formula)
+        for run in range(100):
+            _, trace = generate_random_boolean_trace()
+            tic = time.perf_counter()
+            actual_value = tg.truth(trace)
+            toc = time.perf_counter()
+            simplified_value = any([all([trace[i]['a']] +
+                                        [all([trace[j]['b'] for j in range(0, i + 1)])] +
+                                        [any([trace[j]['c'] for j in range(0, i)])])
+                                    for i in range(1, len(trace))])
+            tuc = time.perf_counter()
+            actual_times.append(toc - tic)
+            simplified_times.append(tuc - toc)
+            if actual_value != simplified_value:
+                print("Values don't match.")
+            assert actual_value == simplified_value
+        print(f"Actual time: {mean(actual_times)}, simplified time: {mean(simplified_times)}")
+        print(f"Hand-written semantics is {sum(actual_times) / sum(simplified_times)} times faster")
+
+    def test_reach(self):
+        actual_times = []
+        simplified_times = []
+        formula = "FG a & G b"
+        tg = FLLOATParser()(formula)
+        for run in range(100):
+            trace = generate_random_trace()
+            tic = time.perf_counter()
+            actual_value = tg.value(trace)
+            toc = time.perf_counter()
+            simplified_value = min([trace[i]['b'] for i in range(0, len(trace))] + [trace[-1]['a']])
+            tuc = time.perf_counter()
+            actual_times.append(toc - tic)
+            simplified_times.append(tuc - toc)
+            if actual_value != simplified_value:
+                print("Values don't match.")
+            assert actual_value == simplified_value
+        print(f"Actual time: {mean(actual_times)}, simplified time: {mean(simplified_times)}")
+        print(f"Hand-written semantics is {sum(actual_times) / sum(simplified_times)} times faster")
+
+    def test_reach_bool(self):
+        actual_times = []
+        simplified_times = []
+        formula = "FG a & G b"
+        tg = FLLOATParser()(formula)
+        for run in range(100):
+            _, trace = generate_random_boolean_trace()
+            tic = time.perf_counter()
+            actual_value = tg.truth(trace)
+            toc = time.perf_counter()
+            simplified_value = all([trace[i]['b'] for i in range(0, len(trace))] + [trace[-1]['a']])
+            tuc = time.perf_counter()
+            actual_times.append(toc - tic)
+            simplified_times.append(tuc - toc)
+            if actual_value != simplified_value:
+                print("Values don't match.")
+            assert actual_value == simplified_value
+        print(f"Actual time: {mean(actual_times)}, simplified time: {mean(simplified_times)}")
+        print(f"Hand-written semantics is {sum(actual_times) / sum(simplified_times)} times faster")
